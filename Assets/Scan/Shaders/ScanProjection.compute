@@ -1,0 +1,37 @@
+#pragma kernel ProjectScan
+
+#include "ScanUtils.hlsl"
+
+StructuredBuffer<SphereInfo> _Spheres;
+globallycoherent RWStructuredBuffer<SphereInfo> _ProjectedSpheres;
+
+float4x4 _WorldToViewport;
+float _FarClipPlane;
+float _AspectRatio;
+
+float3 ProjectWorldPos(float3 worldPos)
+{
+	float4 projectedPos = mul(_WorldToViewport, float4(worldPos, 1.0f));
+	projectedPos.xyz *= 1.0f / projectedPos.w;
+	
+	//if (projectedPos.w <= 0)
+	//	projectedPos.z = _FarClipPlane;
+	
+	bool2 isInFrustum = abs(projectedPos.xy) <= 1;
+	//bool isInFrustumY = step(abs(projectedPos.y));
+	
+	projectedPos.x *= _AspectRatio;
+	
+	return (projectedPos.w > 0.0f) ? projectedPos.xyw : _FarClipPlane;
+	//return projectedPos.xyz;
+}
+
+[numthreads(32, 1, 1)]
+void ProjectScan(uint3 id : SV_DispatchThreadID)
+{
+    SphereInfo currentSphere = _Spheres[id.x];
+	
+	currentSphere.position = ProjectWorldPos(currentSphere.position);
+	
+	_ProjectedSpheres[id.x] = currentSphere;
+}
